@@ -1,0 +1,13 @@
+package com.example.financialportfolio;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class FinancialPortfolioBackendApplicationTests {
+
+    @Test
+    void contextLoads() {
+    }
+
+}
