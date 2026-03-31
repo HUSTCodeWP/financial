@@ -1,16 +1,13 @@
 package com.example.financialportfolio.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
+import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-@Getter
-@AllArgsConstructor
+@Data
 public class StockPricePointResponse {
-
-    private LocalDateTime datetime;
+    private String stockCode;
+    private LocalDateTime ts; // 统一为 LocalDateTime
     private BigDecimal open;
     private BigDecimal high;
     private BigDecimal low;

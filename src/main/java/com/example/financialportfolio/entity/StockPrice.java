@@ -1,6 +1,7 @@
 package com.example.financialportfolio.entity;
 
 import jakarta.persistence.*;
+import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,8 +15,8 @@ import java.time.LocalDateTime;
                 @UniqueConstraint(name = "uk_stock_time", columnNames = {"stock_code", "ts"})
         }
 )
-@Getter
-@Setter
+
+@Data
 public class StockPrice {
 
     @Id

@@ -1,15 +1,13 @@
 package com.example.financialportfolio.dto;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Data;
 
 import java.math.BigDecimal;
 
-@Getter
-@AllArgsConstructor
+@Data
 public class StockListItemResponse {
-
-    private String stockCode;
-    private String chineseName;
-    private BigDecimal close;
+    private String code;
+    private String name;
+    private String market;
+    private BigDecimal latestPrice; // 新增：最新收盘价
 }

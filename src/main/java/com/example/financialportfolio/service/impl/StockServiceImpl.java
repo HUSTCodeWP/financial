@@ -10,6 +10,7 @@ import com.example.financialportfolio.repository.StockRepository;
 import com.example.financialportfolio.service.StockService;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,11 +35,12 @@ public class StockServiceImpl implements StockService {
             StockPrice latestPrice = stockPriceRepository.findTopByStockOrderByTsDesc(stock)
                     .orElse(null);
 
-            result.add(new StockListItemResponse(
-                    stock.getStockCode(),
-                    stock.getChineseName(),
-                    latestPrice != null ? latestPrice.getClose() : null
-            ));
+            StockListItemResponse response = new StockListItemResponse();
+            response.setCode(stock.getStockCode());
+            response.setName(stock.getChineseName());
+            response.setMarket(stock.getMarket());
+            response.setLatestPrice(latestPrice != null ? latestPrice.getClose() : null);
+            result.add(response);
         }
 
         return result;
@@ -46,7 +48,7 @@ public class StockServiceImpl implements StockService {
 
     @Override
     public List<StockPricePointResponse> getStockPrices(String stockCode) {
-        Stock stock = stockRepository.findById(stockCode)
+        Stock stock = stockRepository.findByStockCode(stockCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Stock not found: " + stockCode));
 
         List<StockPrice> prices = stockPriceRepository.findByStockOrderByTsAsc(stock);
@@ -57,16 +59,49 @@ public class StockServiceImpl implements StockService {
 
         List<StockPricePointResponse> result = new ArrayList<>();
         for (StockPrice price : prices) {
-            result.add(new StockPricePointResponse(
-                    price.getTs(),
-                    price.getOpen(),
-                    price.getHigh(),
-                    price.getLow(),
-                    price.getClose(),
-                    price.getVolume()
-            ));
+            StockPricePointResponse resp = new StockPricePointResponse();
+            resp.setStockCode(price.getStock().getStockCode());
+            resp.setTs(price.getTs());
+            resp.setOpen(price.getOpen());
+            resp.setHigh(price.getHigh());
+            resp.setLow(price.getLow());
+            resp.setClose(price.getClose());
+            resp.setVolume(price.getVolume());
+            result.add(resp);
         }
 
         return result;
+    }
+
+    @Override
+    public void saveStockPrice(StockPricePointResponse response) {
+        Stock stock = stockRepository.findByStockCode(response.getStockCode())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Stock not found: " + response.getStockCode()
+                ));
+
+        StockPrice price = new StockPrice();
+        price.setStock(stock);
+        price.setTs(response.getTs() != null ? response.getTs() : LocalDateTime.now());
+        price.setOpen(response.getOpen());
+        price.setHigh(response.getHigh());
+        price.setLow(response.getLow());
+        price.setClose(response.getClose());
+        price.setVolume(response.getVolume());
+
+        stockPriceRepository.save(price);
+    }
+
+    @Override
+    public void updateStockInfo(StockListItemResponse response) {
+        Stock stock = stockRepository.findByStockCode(response.getCode())
+                .orElse(new Stock());
+
+        stock.setStockCode(response.getCode());
+        stock.setChineseName(response.getName());
+        stock.setMarket(response.getMarket());
+        stock.setIsActive(true);
+
+        stockRepository.save(stock);
     }
 }
