@@ -9,14 +9,18 @@ import com.example.financialportfolio.dto.PortfolioOperationResponse;
 import com.example.financialportfolio.dto.UpdatePortfolioRequest;
 import com.example.financialportfolio.entity.Portfolio;
 import com.example.financialportfolio.entity.PortfolioItem;
+import com.example.financialportfolio.entity.Stock;
+import com.example.financialportfolio.entity.StockPrice;
 import com.example.financialportfolio.repository.PortfolioItemRepository;
 import com.example.financialportfolio.repository.PortfolioRepository;
+import com.example.financialportfolio.repository.StockPriceRepository;
 import com.example.financialportfolio.repository.StockRepository;
 import com.example.financialportfolio.service.PortfolioService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -31,13 +35,16 @@ public class PortfolioServiceImpl implements PortfolioService {
     private final PortfolioRepository portfolioRepository;
     private final PortfolioItemRepository portfolioItemRepository;
     private final StockRepository stockRepository;
+    private final StockPriceRepository stockPriceRepository;
 
     public PortfolioServiceImpl(PortfolioRepository portfolioRepository,
                                 PortfolioItemRepository portfolioItemRepository,
-                                StockRepository stockRepository) {
+                                StockRepository stockRepository,
+                                StockPriceRepository stockPriceRepository) {
         this.portfolioRepository = portfolioRepository;
         this.portfolioItemRepository = portfolioItemRepository;
         this.stockRepository = stockRepository;
+        this.stockPriceRepository = stockPriceRepository;
     }
 
     @Override
@@ -79,7 +86,8 @@ public class PortfolioServiceImpl implements PortfolioService {
                 portfolio.getPortfolioName(),
                 details,
                 portfolio.getExpectedReturn(),
-                portfolio.getExpectedVolatility()
+                portfolio.getExpectedVolatility(),
+                portfolio.getSnapshotTime()
         );
     }
 
@@ -87,8 +95,13 @@ public class PortfolioServiceImpl implements PortfolioService {
     public PortfolioOperationResponse createPortfolio(CreatePortfolioRequest request) {
         validatePortfolioRequest(request.getName(), request.getDetails());
 
+        LocalDateTime effectiveTime = request.getTimestamp() != null
+                ? request.getTimestamp()
+                : LocalDateTime.now();
+
         Portfolio portfolio = new Portfolio();
         portfolio.setPortfolioName(request.getName().trim());
+        portfolio.setSnapshotTime(effectiveTime);
 
         // 当前版本不在后端计算收益率和波动率
         portfolio.setExpectedReturn(null);
@@ -96,7 +109,7 @@ public class PortfolioServiceImpl implements PortfolioService {
 
         Portfolio savedPortfolio = portfolioRepository.save(portfolio);
 
-        List<PortfolioItem> items = buildPortfolioItems(savedPortfolio, request.getDetails());
+        List<PortfolioItem> items = buildPortfolioItems(savedPortfolio, request.getDetails(), effectiveTime);
         portfolioItemRepository.saveAll(items);
 
         return new PortfolioOperationResponse(
@@ -208,20 +221,29 @@ public class PortfolioServiceImpl implements PortfolioService {
                 throw new IllegalArgumentException("第" + (i + 1) + "条持仓的股数必须大于0");
             }
 
-            if (item.getClosePrice() == null || item.getClosePrice().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("第" + (i + 1) + "条持仓的收盘价必须大于0");
-            }
-
             if (!stockRepository.existsById(item.getStockCode())) {
                 throw new ResourceNotFoundException("股票不存在：" + item.getStockCode());
             }
         }
     }
 
-    private List<PortfolioItem> buildPortfolioItems(Portfolio portfolio, List<PortfolioDetailItemDto> details) {
+    private List<PortfolioItem> buildPortfolioItems(Portfolio portfolio,
+                                                    List<PortfolioDetailItemDto> details,
+                                                    LocalDateTime effectiveTime) {
         List<PortfolioItem> items = new ArrayList<>();
 
         for (PortfolioDetailItemDto detail : details) {
+            Stock stock = stockRepository.findById(detail.getStockCode())
+                    .orElseThrow(() -> new ResourceNotFoundException("股票不存在：" + detail.getStockCode()));
+
+            StockPrice stockPrice = stockPriceRepository
+                    .findTopByStockAndTsLessThanEqualOrderByTsDesc(stock, effectiveTime)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "未找到股票 " + detail.getStockCode() + " 在 " + effectiveTime + " 之前的价格数据"
+                    ));
+
+            BigDecimal historicalClosePrice = stockPrice.getClose();
+
             PortfolioItem item = new PortfolioItem();
             item.setPortfolio(portfolio);
             item.setStockCode(detail.getStockCode());
@@ -229,12 +251,12 @@ public class PortfolioServiceImpl implements PortfolioService {
             // create 原始字段
             item.setRatio(detail.getRatio());
             item.setShares(detail.getShares());
-            item.setClosePrice(detail.getClosePrice());
+            item.setClosePrice(historicalClosePrice);
 
             // current 当前字段（初始化时和 create 一致）
             item.setCurrentRatio(detail.getRatio());
             item.setCurrentShares(detail.getShares());
-            item.setCurrentPrice(detail.getClosePrice());
+            item.setCurrentPrice(historicalClosePrice);
 
             items.add(item);
         }

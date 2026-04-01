@@ -31,6 +31,9 @@ public class Portfolio {
     @Column(name = "expected_volatility", precision = 10, scale = 5)
     private BigDecimal expectedVolatility;
 
+    @Column(name = "snapshot_time")
+    private LocalDateTime snapshotTime;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

@@ -12,7 +12,6 @@ import java.util.Optional;
 
 public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
 
-    // 1. 批量查询已存在的时间点（解决第二个爆红）
     @Query("SELECT sp.ts FROM StockPrice sp WHERE sp.stock = :stock AND sp.ts IN :tsList")
     List<LocalDateTime> findExistingTsByStockAndTsIn(
             @Param("stock") Stock stock,
@@ -28,6 +27,8 @@ public interface StockPriceRepository extends JpaRepository<StockPrice, Long> {
     );
 
     Optional<StockPrice> findTopByStockOrderByTsDesc(Stock stock);
+
+    Optional<StockPrice> findTopByStockAndTsLessThanEqualOrderByTsDesc(Stock stock, LocalDateTime ts);
 
     boolean existsByStockAndTs(Stock stock, LocalDateTime ts);
 }

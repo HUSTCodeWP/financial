@@ -30,7 +30,6 @@ public class PortfolioDetailItemDto {
     @Positive(message = "Shares must be greater than 0")
     private Integer shares;
 
-    @NotNull(message = "Close price must not be null")
-    @DecimalMin(value = "0.0000", inclusive = false, message = "Close price must be greater than 0")
+    // create 时允许前端不传；update 时由 service 自己校验
     private BigDecimal closePrice;
 }
