@@ -184,33 +184,13 @@ public class StockServiceImpl implements StockService {
         Stock stock = stockRepository.findByStockCode(stockCode)
                 .orElseThrow(() -> new ResourceNotFoundException("Stock not found: " + stockCode));
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDate today = now.toLocalDate();
-        LocalTime currentTime = now.toLocalTime();
+        LocalDateTime endTime = LocalDateTime.now();
+        LocalDateTime startTime = endTime.minusDays(7);
 
-        LocalDateTime startTime;
-        LocalDateTime endTime;
-
-        // 时间范围判断（修正：更精准的交易时段判断）
-        if (currentTime.isBefore(STOCK_OPEN_TIME)) {
-            // 开盘前：取上一交易日全天数据
-            LocalDate previousTradingDay = getPreviousTradingDay(today);
-            startTime = previousTradingDay.atTime(STOCK_OPEN_TIME);
-            endTime = previousTradingDay.atTime(STOCK_CLOSE_TIME);
-        } else if (currentTime.isAfter(STOCK_CLOSE_TIME)) {
-            // 收盘后：取今日全天数据
-            startTime = today.atTime(STOCK_OPEN_TIME);
-            endTime = today.atTime(STOCK_CLOSE_TIME);
-        } else {
-            // 交易中：取今日开盘到当前时间
-            startTime = today.atTime(STOCK_OPEN_TIME);
-            endTime = now;
-        }
-
-        // 回填缺失数据
+        // 先补齐最近7天缺失的5分钟K线
         backfillMissingPrices(stockCode, startTime, endTime);
 
-        // 查询并返回数据
+        // 再查最近7天数据
         List<StockPrice> prices = stockPriceRepository.findByStockAndTsBetweenOrderByTsAsc(
                 stock, startTime, endTime
         );
