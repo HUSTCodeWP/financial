@@ -143,7 +143,28 @@ public class StockServiceImpl implements StockService {
         List<Stock> stocks = stockRepository.findByIsActiveTrueOrderByStockCodeAsc();
         List<StockListItemResponse> result = new ArrayList<>();
 
+        LocalDateTime now = LocalDateTime.now();
+        LocalDate today = now.toLocalDate();
+        LocalTime currentTime = now.toLocalTime();
+
+        LocalDateTime startTime;
+        LocalDateTime endTime;
+
+        if (currentTime.isBefore(STOCK_OPEN_TIME)) {
+            LocalDate previousTradingDay = getPreviousTradingDay(today);
+            startTime = previousTradingDay.atTime(STOCK_OPEN_TIME);
+            endTime = previousTradingDay.atTime(STOCK_CLOSE_TIME);
+        } else if (currentTime.isAfter(STOCK_CLOSE_TIME)) {
+            startTime = today.atTime(STOCK_OPEN_TIME);
+            endTime = today.atTime(STOCK_CLOSE_TIME);
+        } else {
+            startTime = today.atTime(STOCK_OPEN_TIME);
+            endTime = now;
+        }
+
         for (Stock stock : stocks) {
+            backfillMissingPrices(stock.getStockCode(), startTime, endTime);
+
             StockPrice latestPrice = stockPriceRepository.findTopByStockOrderByTsDesc(stock)
                     .orElse(null);
 

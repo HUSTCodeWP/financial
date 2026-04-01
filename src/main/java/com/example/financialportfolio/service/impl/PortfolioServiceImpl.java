@@ -18,7 +18,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 @Transactional
@@ -64,9 +68,9 @@ public class PortfolioServiceImpl implements PortfolioService {
         for (PortfolioItem item : items) {
             details.add(new PortfolioDetailItemDto(
                     item.getStockCode(),
-                    item.getRatio(),
-                    item.getShares(),
-                    item.getClosePrice()
+                    item.getCurrentRatio() != null ? item.getCurrentRatio() : item.getRatio(),
+                    item.getCurrentShares() != null ? item.getCurrentShares() : item.getShares(),
+                    item.getCurrentPrice() != null ? item.getCurrentPrice() : item.getClosePrice()
             ));
         }
 
@@ -86,7 +90,7 @@ public class PortfolioServiceImpl implements PortfolioService {
         Portfolio portfolio = new Portfolio();
         portfolio.setPortfolioName(request.getName().trim());
 
-        // 这次需求中不再由后端计算，先置空
+        // 当前版本不在后端计算收益率和波动率
         portfolio.setExpectedReturn(null);
         portfolio.setExpectedVolatility(null);
 
@@ -110,22 +114,64 @@ public class PortfolioServiceImpl implements PortfolioService {
         validatePortfolioRequest(request.getName(), request.getDetails());
 
         portfolio.setPortfolioName(request.getName().trim());
-
-        // 这次需求中不再由后端计算，更新时也置空
         portfolio.setExpectedReturn(null);
         portfolio.setExpectedVolatility(null);
+        portfolioRepository.save(portfolio);
 
-        Portfolio updatedPortfolio = portfolioRepository.save(portfolio);
+        List<PortfolioItem> existingItems = portfolioItemRepository.findByPortfolioId(id);
 
-        portfolioItemRepository.deleteByPortfolioId(id);
+        Map<String, PortfolioItem> existingItemMap = new HashMap<>();
+        for (PortfolioItem item : existingItems) {
+            existingItemMap.put(item.getStockCode(), item);
+        }
 
-        List<PortfolioItem> newItems = buildPortfolioItems(updatedPortfolio, request.getDetails());
-        portfolioItemRepository.saveAll(newItems);
+        Set<String> requestStockCodes = new HashSet<>();
+
+        for (PortfolioDetailItemDto detail : request.getDetails()) {
+            requestStockCodes.add(detail.getStockCode());
+
+            PortfolioItem existingItem = existingItemMap.get(detail.getStockCode());
+
+            if (existingItem != null) {
+                // 只更新当前字段，不覆盖 create 时原始数据
+                existingItem.setCurrentRatio(detail.getRatio());
+                existingItem.setCurrentShares(detail.getShares());
+                existingItem.setCurrentPrice(detail.getClosePrice());
+            } else {
+                // 新增股票：原始字段和当前字段都初始化为本次值
+                PortfolioItem newItem = new PortfolioItem();
+                newItem.setPortfolio(portfolio);
+                newItem.setStockCode(detail.getStockCode());
+
+                // create 原始字段
+                newItem.setRatio(detail.getRatio());
+                newItem.setShares(detail.getShares());
+                newItem.setClosePrice(detail.getClosePrice());
+
+                // current 当前字段
+                newItem.setCurrentRatio(detail.getRatio());
+                newItem.setCurrentShares(detail.getShares());
+                newItem.setCurrentPrice(detail.getClosePrice());
+
+                existingItems.add(newItem);
+            }
+        }
+
+        // 对于前端本次未传入的旧股票：保留原始数据，但当前持仓置零
+        for (PortfolioItem item : existingItems) {
+            if (!requestStockCodes.contains(item.getStockCode())) {
+                item.setCurrentRatio(BigDecimal.ZERO);
+                item.setCurrentShares(0);
+                item.setCurrentPrice(BigDecimal.ZERO);
+            }
+        }
+
+        portfolioItemRepository.saveAll(existingItems);
 
         return new PortfolioOperationResponse(
-                updatedPortfolio.getId(),
-                updatedPortfolio.getExpectedReturn(),
-                updatedPortfolio.getExpectedVolatility()
+                portfolio.getId(),
+                portfolio.getExpectedReturn(),
+                portfolio.getExpectedVolatility()
         );
     }
 
@@ -179,9 +225,17 @@ public class PortfolioServiceImpl implements PortfolioService {
             PortfolioItem item = new PortfolioItem();
             item.setPortfolio(portfolio);
             item.setStockCode(detail.getStockCode());
+
+            // create 原始字段
             item.setRatio(detail.getRatio());
             item.setShares(detail.getShares());
             item.setClosePrice(detail.getClosePrice());
+
+            // current 当前字段（初始化时和 create 一致）
+            item.setCurrentRatio(detail.getRatio());
+            item.setCurrentShares(detail.getShares());
+            item.setCurrentPrice(detail.getClosePrice());
+
             items.add(item);
         }
 

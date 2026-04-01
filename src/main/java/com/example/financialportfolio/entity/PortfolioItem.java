@@ -31,4 +31,13 @@ public class PortfolioItem {
 
     @Column(name = "close_price", nullable = false, precision = 12, scale = 4)
     private BigDecimal closePrice;
+
+    @Column(name = "current_ratio", precision = 10, scale = 4)
+    private BigDecimal currentRatio;
+
+    @Column(name = "current_shares")
+    private Integer currentShares;
+
+    @Column(name = "current_price", precision = 12, scale = 4)
+    private BigDecimal currentPrice;
 }
