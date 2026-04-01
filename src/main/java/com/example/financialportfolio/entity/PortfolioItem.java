@@ -25,4 +25,8 @@ public class PortfolioItem {
 
     @Column(name = "ratio", nullable = false, precision = 10, scale = 4)
     private BigDecimal ratio;
+
+    //用户买入价格   --
+    //用户卖出价格
+
 }
