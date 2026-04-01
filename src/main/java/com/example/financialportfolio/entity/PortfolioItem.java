@@ -25,4 +25,10 @@ public class PortfolioItem {
 
     @Column(name = "ratio", nullable = false, precision = 10, scale = 4)
     private BigDecimal ratio;
+
+    @Column(name = "shares", nullable = false)
+    private Integer shares;
+
+    @Column(name = "close_price", nullable = false, precision = 12, scale = 4)
+    private BigDecimal closePrice;
 }

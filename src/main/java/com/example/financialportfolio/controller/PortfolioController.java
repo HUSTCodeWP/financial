@@ -1,7 +1,11 @@
 package com.example.financialportfolio.controller;
 
 import com.example.financialportfolio.common.result.ApiResponse;
-import com.example.financialportfolio.dto.*;
+import com.example.financialportfolio.dto.CreatePortfolioRequest;
+import com.example.financialportfolio.dto.PortfolioDetailResponse;
+import com.example.financialportfolio.dto.PortfolioListItemResponse;
+import com.example.financialportfolio.dto.PortfolioOperationResponse;
+import com.example.financialportfolio.dto.UpdatePortfolioRequest;
 import com.example.financialportfolio.service.PortfolioService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -21,47 +25,48 @@ public class PortfolioController {
 
     @GetMapping
     public ApiResponse<List<PortfolioListItemResponse>> getAllPortfolios() {
-        return ApiResponse.success(portfolioService.getAllPortfolios(), "return successful");
+        return ApiResponse.success(portfolioService.getAllPortfolios(), "查询成功");
     }
 
-    @GetMapping("/{id}")
-    public ApiResponse<PortfolioDetailResponse> getPortfolioById(@PathVariable Long id) {
-        return ApiResponse.success(portfolioService.getPortfolioById(id), "portfolio fetched successfully");
+    @GetMapping("/{portfolioId}")
+    public ApiResponse<PortfolioDetailResponse> getPortfolioById(@PathVariable Long portfolioId) {
+        return ApiResponse.success(
+                portfolioService.getPortfolioById(portfolioId),
+                "查询组合详情成功"
+        );
     }
 
-    // 新路径
     @PostMapping
     public ApiResponse<PortfolioOperationResponse> createPortfolio(
             @Valid @RequestBody CreatePortfolioRequest request) {
         return ApiResponse.success(
                 portfolioService.createPortfolio(request),
-                "portfolio created successfully"
+                "创建组合成功"
         );
     }
 
-    // 兼容旧路径
     @PostMapping("/createPortfolio")
     public ApiResponse<PortfolioOperationResponse> createPortfolioLegacy(
             @Valid @RequestBody CreatePortfolioRequest request) {
         return ApiResponse.success(
                 portfolioService.createPortfolio(request),
-                "portfolio created successfully"
+                "创建组合成功"
         );
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/{portfolioId}")
     public ApiResponse<PortfolioOperationResponse> updatePortfolio(
-            @PathVariable Long id,
+            @PathVariable Long portfolioId,
             @Valid @RequestBody UpdatePortfolioRequest request) {
         return ApiResponse.success(
-                portfolioService.updatePortfolio(id, request),
-                "portfolio updated successfully"
+                portfolioService.updatePortfolio(portfolioId, request),
+                "更新组合成功"
         );
     }
 
-    @DeleteMapping("/{id}")
-    public ApiResponse<Void> deletePortfolio(@PathVariable Long id) {
-        portfolioService.deletePortfolio(id);
-        return ApiResponse.success(null, "portfolio deleted successfully");
+    @DeleteMapping("/{portfolioId}")
+    public ApiResponse<Void> deletePortfolio(@PathVariable Long portfolioId) {
+        portfolioService.deletePortfolio(portfolioId);
+        return ApiResponse.success(null, "删除组合成功");
     }
 }

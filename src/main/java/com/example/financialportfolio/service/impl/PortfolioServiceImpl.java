@@ -1,9 +1,15 @@
 package com.example.financialportfolio.service.impl;
 
 import com.example.financialportfolio.common.exception.ResourceNotFoundException;
-import com.example.financialportfolio.dto.*;
+import com.example.financialportfolio.dto.CreatePortfolioRequest;
+import com.example.financialportfolio.dto.PortfolioDetailItemDto;
+import com.example.financialportfolio.dto.PortfolioDetailResponse;
+import com.example.financialportfolio.dto.PortfolioListItemResponse;
+import com.example.financialportfolio.dto.PortfolioOperationResponse;
+import com.example.financialportfolio.dto.UpdatePortfolioRequest;
 import com.example.financialportfolio.entity.Portfolio;
 import com.example.financialportfolio.entity.PortfolioItem;
+import com.example.financialportfolio.repository.PortfolioItemRepository;
 import com.example.financialportfolio.repository.PortfolioRepository;
 import com.example.financialportfolio.repository.StockRepository;
 import com.example.financialportfolio.service.PortfolioService;
@@ -11,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,11 +25,14 @@ import java.util.List;
 public class PortfolioServiceImpl implements PortfolioService {
 
     private final PortfolioRepository portfolioRepository;
+    private final PortfolioItemRepository portfolioItemRepository;
     private final StockRepository stockRepository;
 
     public PortfolioServiceImpl(PortfolioRepository portfolioRepository,
+                                PortfolioItemRepository portfolioItemRepository,
                                 StockRepository stockRepository) {
         this.portfolioRepository = portfolioRepository;
+        this.portfolioItemRepository = portfolioItemRepository;
         this.stockRepository = stockRepository;
     }
 
@@ -48,13 +56,17 @@ public class PortfolioServiceImpl implements PortfolioService {
     @Transactional(readOnly = true)
     public PortfolioDetailResponse getPortfolioById(Long id) {
         Portfolio portfolio = portfolioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("组合不存在，ID：" + id)); // 优化提示语
+                .orElseThrow(() -> new ResourceNotFoundException("组合不存在，ID：" + id));
 
+        List<PortfolioItem> items = portfolioItemRepository.findByPortfolioId(id);
         List<PortfolioDetailItemDto> details = new ArrayList<>();
-        for (PortfolioItem item : portfolio.getItems()) {
+
+        for (PortfolioItem item : items) {
             details.add(new PortfolioDetailItemDto(
                     item.getStockCode(),
-                    item.getRatio()
+                    item.getRatio(),
+                    item.getShares(),
+                    item.getClosePrice()
             ));
         }
 
@@ -74,86 +86,89 @@ public class PortfolioServiceImpl implements PortfolioService {
         Portfolio portfolio = new Portfolio();
         portfolio.setPortfolioName(request.getName().trim());
 
-        // 预留：此处应根据股票权重计算预期收益/波动率，示例先保留逻辑，后续替换
-        BigDecimal expectedReturn = calculateExpectedReturn(request.getDetails());
-        BigDecimal expectedVolatility = calculateExpectedVolatility(request.getDetails());
+        // 这次需求中不再由后端计算，先置空
+        portfolio.setExpectedReturn(null);
+        portfolio.setExpectedVolatility(null);
 
-        portfolio.setExpectedReturn(expectedReturn);
-        portfolio.setExpectedVolatility(expectedVolatility);
+        Portfolio savedPortfolio = portfolioRepository.save(portfolio);
 
-        List<PortfolioItem> items = buildPortfolioItems(portfolio, request.getDetails());
-        portfolio.setItems(items);
+        List<PortfolioItem> items = buildPortfolioItems(savedPortfolio, request.getDetails());
+        portfolioItemRepository.saveAll(items);
 
-        Portfolio saved = portfolioRepository.save(portfolio);
-
-        return new PortfolioOperationResponse(saved.getId(), expectedReturn, expectedVolatility);
+        return new PortfolioOperationResponse(
+                savedPortfolio.getId(),
+                savedPortfolio.getExpectedReturn(),
+                savedPortfolio.getExpectedVolatility()
+        );
     }
 
     @Override
     public PortfolioOperationResponse updatePortfolio(Long id, UpdatePortfolioRequest request) {
         Portfolio portfolio = portfolioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("组合不存在，ID：" + id)); // 优化提示语
+                .orElseThrow(() -> new ResourceNotFoundException("组合不存在，ID：" + id));
 
         validatePortfolioRequest(request.getName(), request.getDetails());
 
         portfolio.setPortfolioName(request.getName().trim());
 
-        // 预留：计算预期收益/波动率
-        BigDecimal expectedReturn = calculateExpectedReturn(request.getDetails());
-        BigDecimal expectedVolatility = calculateExpectedVolatility(request.getDetails());
+        // 这次需求中不再由后端计算，更新时也置空
+        portfolio.setExpectedReturn(null);
+        portfolio.setExpectedVolatility(null);
 
-        portfolio.setExpectedReturn(expectedReturn);
-        portfolio.setExpectedVolatility(expectedVolatility);
+        Portfolio updatedPortfolio = portfolioRepository.save(portfolio);
 
-        portfolio.getItems().clear();
-        portfolio.getItems().addAll(buildPortfolioItems(portfolio, request.getDetails()));
+        portfolioItemRepository.deleteByPortfolioId(id);
 
-        Portfolio updated = portfolioRepository.save(portfolio);
+        List<PortfolioItem> newItems = buildPortfolioItems(updatedPortfolio, request.getDetails());
+        portfolioItemRepository.saveAll(newItems);
 
-        return new PortfolioOperationResponse(updated.getId(), expectedReturn, expectedVolatility);
+        return new PortfolioOperationResponse(
+                updatedPortfolio.getId(),
+                updatedPortfolio.getExpectedReturn(),
+                updatedPortfolio.getExpectedVolatility()
+        );
     }
 
     @Override
     public void deletePortfolio(Long id) {
         Portfolio portfolio = portfolioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("组合不存在，ID：" + id)); // 优化提示语
+                .orElseThrow(() -> new ResourceNotFoundException("组合不存在，ID：" + id));
 
+        portfolioItemRepository.deleteByPortfolioId(id);
         portfolioRepository.delete(portfolio);
     }
 
     private void validatePortfolioRequest(String name, List<PortfolioDetailItemDto> details) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("组合名称不能为空"); // 优化中文提示
+            throw new IllegalArgumentException("组合名称不能为空");
         }
 
         if (details == null || details.isEmpty()) {
-            throw new IllegalArgumentException("组合持仓明细不能为空"); // 优化中文提示
+            throw new IllegalArgumentException("组合持仓明细不能为空");
         }
-
-        BigDecimal totalRatio = BigDecimal.ZERO;
 
         for (int i = 0; i < details.size(); i++) {
             PortfolioDetailItemDto item = details.get(i);
 
             if (item.getStockCode() == null || item.getStockCode().isBlank()) {
-                throw new IllegalArgumentException("第" + (i+1) + "条持仓的股票代码不能为空"); // 优化索引（从1开始）
+                throw new IllegalArgumentException("第" + (i + 1) + "条持仓的股票代码不能为空");
             }
 
-            if (item.getRatio() == null || item.getRatio().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("第" + (i+1) + "条持仓的权重必须大于0"); // 优化索引
+            if (item.getRatio() == null || item.getRatio().compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException("第" + (i + 1) + "条持仓的权重不能小于0");
+            }
+
+            if (item.getShares() == null || item.getShares() <= 0) {
+                throw new IllegalArgumentException("第" + (i + 1) + "条持仓的股数必须大于0");
+            }
+
+            if (item.getClosePrice() == null || item.getClosePrice().compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("第" + (i + 1) + "条持仓的收盘价必须大于0");
             }
 
             if (!stockRepository.existsById(item.getStockCode())) {
-                throw new ResourceNotFoundException("股票不存在：" + item.getStockCode()); // 优化提示语
+                throw new ResourceNotFoundException("股票不存在：" + item.getStockCode());
             }
-
-            totalRatio = totalRatio.add(item.getRatio()).setScale(5, RoundingMode.HALF_UP);
-        }
-
-        // 优化提示语：明确误差范围
-        BigDecimal diff = totalRatio.subtract(BigDecimal.ONE).abs();
-        if (diff.compareTo(new BigDecimal("0.01")) > 0) {
-            throw new IllegalArgumentException("持仓权重总和需等于1（允许±1%误差），当前总和：" + totalRatio);
         }
     }
 
@@ -165,28 +180,11 @@ public class PortfolioServiceImpl implements PortfolioService {
             item.setPortfolio(portfolio);
             item.setStockCode(detail.getStockCode());
             item.setRatio(detail.getRatio());
+            item.setShares(detail.getShares());
+            item.setClosePrice(detail.getClosePrice());
             items.add(item);
         }
 
         return items;
-    }
-
-    // 预留：计算组合预期收益（示例逻辑，需根据实际业务调整）
-    private BigDecimal calculateExpectedReturn(List<PortfolioDetailItemDto> details) {
-        BigDecimal totalReturn = BigDecimal.ZERO;
-        // 示例：假设从StockRepository获取单只股票的预期收益，再按权重累加
-        for (PortfolioDetailItemDto item : details) {
-            // 实际业务中需补充：Stock stock = stockRepository.findById(item.getStockCode()).get();
-            // BigDecimal stockReturn = stock.getExpectedReturn();
-            // totalReturn = totalReturn.add(stockReturn.multiply(item.getRatio()));
-        }
-        return totalReturn.setScale(5, RoundingMode.HALF_UP);
-    }
-
-    // 预留：计算组合预期波动率（示例逻辑，需根据实际业务调整）
-    private BigDecimal calculateExpectedVolatility(List<PortfolioDetailItemDto> details) {
-        BigDecimal totalVolatility = BigDecimal.ZERO;
-        // 实际业务中需补充波动率计算逻辑（如协方差矩阵）
-        return totalVolatility.setScale(5, RoundingMode.HALF_UP);
     }
 }
