@@ -5,6 +5,7 @@ import com.example.financialportfolio.dto.*;
 import com.example.financialportfolio.service.AiConsultantService;
 import org.springframework.web.bind.annotation.*;
 
+@CrossOrigin(origins = "http://localhost:5175")
 @RestController
 @RequestMapping("/api/ai")
 public class AiConsultantController {
