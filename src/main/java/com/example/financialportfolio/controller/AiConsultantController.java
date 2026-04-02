@@ -3,9 +3,11 @@ package com.example.financialportfolio.controller;
 import com.example.financialportfolio.common.result.ApiResponse;
 import com.example.financialportfolio.dto.*;
 import com.example.financialportfolio.service.AiConsultantService;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-@CrossOrigin(origins = "http://localhost:5175")
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/ai")
 public class AiConsultantController {
@@ -22,10 +24,9 @@ public class AiConsultantController {
         return ApiResponse.success(new AiChatResponse(answer));
     }
 
-    @PostMapping("/portfolio/{portfolioId}/advice")
-    public ApiResponse<PortfolioAdviceResponse> generateAdvice(@PathVariable Long portfolioId) {
-        PortfolioAdviceResponse response = aiConsultantService.generatePortfolioAdvice(portfolioId);
-        return ApiResponse.success(response);
+    @PostMapping(value = "/portfolio/{portfolioId}/advice", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter generateAdvice(@PathVariable Long portfolioId) {
+        return aiConsultantService.generatePortfolioAdvice(portfolioId);
     }
 
     @PostMapping("/portfolio/{portfolioId}/question")

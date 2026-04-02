@@ -1,12 +1,12 @@
 package com.example.financialportfolio.service;
 
-import com.example.financialportfolio.dto.PortfolioAdviceResponse;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface AiConsultantService {
 
     String chat(String question);
 
-    PortfolioAdviceResponse generatePortfolioAdvice(Long portfolioId);
+    SseEmitter generatePortfolioAdvice(Long portfolioId);
 
     String answerPortfolioQuestion(Long portfolioId, String question, String riskPreference);
 }

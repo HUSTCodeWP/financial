@@ -52,7 +52,7 @@ public class PromptBuilder {
                                 4. Risk Reminder
 
                                 Requirements:
-                                1. Answer in Chinese;
+                                1. Answer in English;
                                 2. Do not promise returns;
                                 3. Do not give absolute buy or sell instructions;
                                 4. Suggestions should be as specific and actionable as possible;

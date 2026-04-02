@@ -41,3 +41,8 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// build.gradle (Groovy语法)
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+}

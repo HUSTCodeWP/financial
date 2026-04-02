@@ -2,7 +2,6 @@ package com.example.financialportfolio.service.impl;
 
 import com.example.financialportfolio.client.LlmClient;
 import com.example.financialportfolio.dto.HoldingAnalysisItem;
-import com.example.financialportfolio.dto.PortfolioAdviceResponse;
 import com.example.financialportfolio.dto.PortfolioAnalysisContext;
 import com.example.financialportfolio.entity.Portfolio;
 import com.example.financialportfolio.entity.PortfolioItem;
@@ -12,7 +11,9 @@ import com.example.financialportfolio.repository.PortfolioItemRepository;
 import com.example.financialportfolio.repository.PortfolioRepository;
 import com.example.financialportfolio.repository.StockRepository;
 import com.example.financialportfolio.service.AiConsultantService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ public class AiConsultantServiceImpl implements AiConsultantService {
     private final StockRepository stockRepository;
     private final LlmClient llmClient;
     private final PromptBuilder promptBuilder;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public AiConsultantServiceImpl(PortfolioRepository portfolioRepository,
                                    PortfolioItemRepository portfolioItemRepository,
@@ -47,18 +49,44 @@ public class AiConsultantServiceImpl implements AiConsultantService {
     }
 
     @Override
-    public PortfolioAdviceResponse generatePortfolioAdvice(Long portfolioId) {
-        PortfolioAnalysisContext context = buildPortfolioContext(portfolioId);
-        String prompt = promptBuilder.buildPortfolioAdvicePrompt(context);
-        String answer = llmClient.chat(prompt);
+    public SseEmitter generatePortfolioAdvice(Long portfolioId) {
+        SseEmitter emitter = new SseEmitter(120000L);
 
-        PortfolioAdviceResponse response = new PortfolioAdviceResponse();
-        response.setSummary(answer);
-        response.setRiskLevel(calculateRiskLevel(context));
-        response.setRiskPoints(buildRiskPoints(context));
-        response.setSuggestions(buildBasicSuggestions(context));
-        response.setDisclaimer("以上内容仅供参考，不构成任何投资承诺或买卖建议，投资需结合自身风险承受能力审慎决策。");
-        return response;
+        new Thread(() -> {
+            try {
+                PortfolioAnalysisContext context = buildPortfolioContext(portfolioId);
+                String prompt = promptBuilder.buildPortfolioAdvicePrompt(context);
+
+                emitter.send(SseEmitter.event().name("riskLevel").data(calculateRiskLevel(context)));
+
+                llmClient.streamChat(prompt, chunk -> {
+                    try {
+                        emitter.send(SseEmitter.event().name("chunk").data(chunk));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+
+                emitter.send(SseEmitter.event().name("riskPoints")
+                        .data(objectMapper.writeValueAsString(buildRiskPoints(context))));
+                emitter.send(SseEmitter.event().name("suggestions")
+                        .data(objectMapper.writeValueAsString(buildBasicSuggestions(context))));
+                emitter.send(SseEmitter.event().name("disclaimer")
+                        .data("For informational purposes only. This does not constitute investment advice."));
+                emitter.send(SseEmitter.event().name("done").data("[DONE]"));
+                emitter.complete();
+            } catch (Exception e) {
+                try {
+                    emitter.send(SseEmitter.event().name("error").data(
+                            e.getMessage() == null ? "AI analysis failed." : e.getMessage()
+                    ));
+                } catch (Exception ignored) {
+                }
+                emitter.completeWithError(e);
+            }
+        }).start();
+
+        return emitter;
     }
 
     @Override
@@ -70,7 +98,7 @@ public class AiConsultantServiceImpl implements AiConsultantService {
 
     private PortfolioAnalysisContext buildPortfolioContext(Long portfolioId) {
         Portfolio portfolio = portfolioRepository.findById(portfolioId)
-                .orElseThrow(() -> new RuntimeException("投资组合不存在: " + portfolioId));
+                .orElseThrow(() -> new RuntimeException("Portfolio not found: " + portfolioId));
 
         List<PortfolioItem> items = portfolioItemRepository.findByPortfolioId(portfolioId);
 
@@ -85,7 +113,11 @@ public class AiConsultantServiceImpl implements AiConsultantService {
             Optional<Stock> stockOpt = stockRepository.findByStockCode(stockCode);
             if (stockOpt.isPresent()) {
                 Stock stock = stockOpt.get();
-                stockName = stock.getChineseName();
+                if (stock.getEnglishName() != null && !stock.getEnglishName().isBlank()) {
+                    stockName = stock.getEnglishName();
+                } else {
+                    stockName = stock.getChineseName();
+                }
             }
 
             HoldingAnalysisItem analysisItem = new HoldingAnalysisItem();
@@ -93,7 +125,6 @@ public class AiConsultantServiceImpl implements AiConsultantService {
             analysisItem.setStockName(stockName);
             analysisItem.setWeight(weight);
 
-            // 当前版本不支持数量/买入价/收益分析，统一置 0
             analysisItem.setQuantity(BigDecimal.ZERO);
             analysisItem.setCostPrice(BigDecimal.ZERO);
             analysisItem.setLatestPrice(BigDecimal.ZERO);
@@ -112,13 +143,10 @@ public class AiConsultantServiceImpl implements AiConsultantService {
         PortfolioAnalysisContext context = new PortfolioAnalysisContext();
         context.setPortfolioId(portfolioId);
         context.setPortfolioName(portfolio.getPortfolioName());
-
-        // 当前版本不支持收益相关计算，统一置 0
         context.setTotalMarketValue(BigDecimal.ZERO);
         context.setTotalCostValue(BigDecimal.ZERO);
         context.setTotalProfit(BigDecimal.ZERO);
         context.setTotalReturnRate(BigDecimal.ZERO);
-
         context.setMaxHoldingWeight(maxWeight);
         context.setHoldingCount(holdingAnalysisItems.size());
         context.setHoldings(holdingAnalysisItems);
@@ -144,13 +172,13 @@ public class AiConsultantServiceImpl implements AiConsultantService {
         List<String> points = new ArrayList<>();
 
         if (context.getHoldingCount() <= 2) {
-            points.add("持仓股票数量较少，组合分散度偏低。");
+            points.add("The number of holdings is relatively small, which suggests limited diversification.");
         }
         if (context.getMaxHoldingWeight().compareTo(BigDecimal.valueOf(50)) >= 0) {
-            points.add("单一持仓权重较高，组合集中度偏高。");
+            points.add("A single holding has a relatively high weight, indicating concentration risk.");
         }
         if (points.isEmpty()) {
-            points.add("当前组合从权重分布来看相对均衡，但仍需持续关注市场波动和个股风险。");
+            points.add("The portfolio structure appears relatively balanced, but market and single-stock risks still need monitoring.");
         }
 
         return points;
@@ -160,13 +188,13 @@ public class AiConsultantServiceImpl implements AiConsultantService {
         List<String> suggestions = new ArrayList<>();
 
         if (context.getHoldingCount() <= 2) {
-            suggestions.add("可考虑增加不同标的，提升组合分散度。");
+            suggestions.add("Consider adding more holdings to improve diversification.");
         }
         if (context.getMaxHoldingWeight().compareTo(BigDecimal.valueOf(50)) >= 0) {
-            suggestions.add("可考虑适度降低单一重仓标的占比，优化仓位结构。");
+            suggestions.add("Consider reducing the weight of the largest holding to optimize concentration risk.");
         }
         if (suggestions.isEmpty()) {
-            suggestions.add("当前组合权重结构相对均衡，可继续结合市场情况动态调整。");
+            suggestions.add("The portfolio structure is relatively balanced. Continue monitoring allocation changes and market conditions.");
         }
 
         return suggestions;
