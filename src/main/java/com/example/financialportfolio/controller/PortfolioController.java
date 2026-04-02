@@ -45,15 +45,6 @@ public class PortfolioController {
         );
     }
 
-    @PostMapping("/createPortfolio")
-    public ApiResponse<PortfolioOperationResponse> createPortfolioLegacy(
-            @Valid @RequestBody CreatePortfolioRequest request) {
-        return ApiResponse.success(
-                portfolioService.createPortfolio(request),
-                "创建组合成功"
-        );
-    }
-
     @PutMapping("/{portfolioId}")
     public ApiResponse<PortfolioOperationResponse> updatePortfolio(
             @PathVariable Long portfolioId,

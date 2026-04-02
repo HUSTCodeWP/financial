@@ -60,11 +60,10 @@ public class StockServiceImpl implements StockService {
     // 默认初始化的股票列表（解决启动时无激活股票问题）
     private static final List<StockListItemResponse> DEFAULT_STOCKS;
 
-    // 静态代码块初始化（用setter赋值，适配无参构造的DTO）
     static {
         DEFAULT_STOCKS = new ArrayList<>();
 
-        // 浦发银行
+        // 1. 浦发银行
         StockListItemResponse stock1 = new StockListItemResponse();
         stock1.setCode("600000");
         stock1.setName("浦发银行");
@@ -72,7 +71,7 @@ public class StockServiceImpl implements StockService {
         stock1.setLatestPrice(null);
         DEFAULT_STOCKS.add(stock1);
 
-        // 平安银行
+        // 2. 平安银行
         StockListItemResponse stock2 = new StockListItemResponse();
         stock2.setCode("000001");
         stock2.setName("平安银行");
@@ -80,13 +79,69 @@ public class StockServiceImpl implements StockService {
         stock2.setLatestPrice(null);
         DEFAULT_STOCKS.add(stock2);
 
-        // 贵州茅台
+        // 3. 贵州茅台
         StockListItemResponse stock3 = new StockListItemResponse();
         stock3.setCode("600519");
         stock3.setName("贵州茅台");
         stock3.setMarket("SH");
         stock3.setLatestPrice(null);
         DEFAULT_STOCKS.add(stock3);
+
+        // 4. 招商银行
+        StockListItemResponse stock4 = new StockListItemResponse();
+        stock4.setCode("600036");
+        stock4.setName("招商银行");
+        stock4.setMarket("SH");
+        stock4.setLatestPrice(null);
+        DEFAULT_STOCKS.add(stock4);
+
+        // 5. 万科A
+        StockListItemResponse stock5 = new StockListItemResponse();
+        stock5.setCode("000002");
+        stock5.setName("万科A");
+        stock5.setMarket("SZ");
+        stock5.setLatestPrice(null);
+        DEFAULT_STOCKS.add(stock5);
+
+        // 6. 中信证券
+        StockListItemResponse stock6 = new StockListItemResponse();
+        stock6.setCode("600030");
+        stock6.setName("中信证券");
+        stock6.setMarket("SH");
+        stock6.setLatestPrice(null);
+        DEFAULT_STOCKS.add(stock6);
+
+        // 7. 比亚迪
+        StockListItemResponse stock7 = new StockListItemResponse();
+        stock7.setCode("002594");
+        stock7.setName("比亚迪");
+        stock7.setMarket("SZ");
+        stock7.setLatestPrice(null);
+        DEFAULT_STOCKS.add(stock7);
+
+        // 8. 宁德时代
+        StockListItemResponse stock8 = new StockListItemResponse();
+        stock8.setCode("300750");
+        stock8.setName("宁德时代");
+        stock8.setMarket("SZ");
+        stock8.setLatestPrice(null);
+        DEFAULT_STOCKS.add(stock8);
+
+        // 9. 中国平安
+        StockListItemResponse stock9 = new StockListItemResponse();
+        stock9.setCode("601318");
+        stock9.setName("中国平安");
+        stock9.setMarket("SH");
+        stock9.setLatestPrice(null);
+        DEFAULT_STOCKS.add(stock9);
+
+        // 10. 五粮液
+        StockListItemResponse stock10 = new StockListItemResponse();
+        stock10.setCode("000858");
+        stock10.setName("五粮液");
+        stock10.setMarket("SZ");
+        stock10.setLatestPrice(null);
+        DEFAULT_STOCKS.add(stock10);
     }
 
     public StockServiceImpl(StockRepository stockRepository,
